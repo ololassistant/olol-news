@@ -1,6 +1,9 @@
+
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -306,7 +309,7 @@ body {
     content: "...";
 
     animation:
-        dots 1.4s infinite;
+        dots 0.5s infinite;
 }
 
 @keyframes dots {
@@ -618,6 +621,7 @@ body {
 }
 
 </style>
+
 </head>
 
 
@@ -633,7 +637,7 @@ body {
     <div class="hero-content">
 
         <div class="hero-small">
-            Our Lady of Lourdes
+            Our Lady of Lourdes Ipoh
         </div>
 
         <h1>
@@ -650,7 +654,6 @@ body {
     </div>
 
 </section>
-
 
 
 <!-- =========================================
@@ -673,7 +676,6 @@ body {
     </div>
 
 
-
     <!-- LOADING -->
 
     <div id="loading">
@@ -685,16 +687,14 @@ body {
     </div>
 
 
-
     <!-- ERROR -->
 
     <div id="error">
 
         Unable to load news and events.
-        Please try again later.
+        Please try again later or refresh the page.
 
     </div>
-
 
 
     <!-- NEWS CARDS -->
@@ -706,7 +706,6 @@ body {
 
 
 </main>
-
 
 
 <!-- =========================================
@@ -769,17 +768,15 @@ body {
 </div>
 
 
-
 <!-- =========================================
      FOOTER
 ========================================= -->
 
 <footer class="footer">
 
-    Our Lady of Lourdes Parish
+    Our Lady of Lourdes Parish, Ipoh
 
 </footer>
-
 
 
 <script>
@@ -802,30 +799,264 @@ const DEFAULT_IMAGE =
 
 
 /* =========================================
+   CACHE SETTINGS
+========================================= */
+
+/*
+   News data is stored temporarily
+   inside the visitor's browser.
+
+   This makes repeat visits much faster.
+*/
+
+const CACHE_KEY =
+"olol_news_events_cache_v1";
+
+
+/*
+   This value is only used to determine
+   when the cache should be considered
+   old.
+
+   Even when old, we still display it
+   immediately and refresh in the
+   background.
+*/
+
+const CACHE_TIME =
+30 * 60 * 1000;
+
+
+/* =========================================
+   SAVE NEWS TO CACHE
+========================================= */
+
+function saveNewsToCache(news) {
+
+    try {
+
+        const cacheData = {
+
+            time: Date.now(),
+
+            news: news
+
+        };
+
+        localStorage.setItem(
+            CACHE_KEY,
+            JSON.stringify(cacheData)
+        );
+
+    }
+
+    catch (error) {
+
+        console.log(
+            "Unable to save news cache:",
+            error
+        );
+
+    }
+
+}
+
+
+/* =========================================
+   GET NEWS FROM CACHE
+========================================= */
+
+function getCachedNews() {
+
+    try {
+
+        const cached =
+            localStorage.getItem(
+                CACHE_KEY
+            );
+
+
+        if (!cached) {
+
+            return null;
+
+        }
+
+
+        const cacheData =
+            JSON.parse(cached);
+
+
+        if (
+            !cacheData.news ||
+            !Array.isArray(cacheData.news)
+        ) {
+
+            return null;
+
+        }
+
+
+        return cacheData.news;
+
+    }
+
+    catch (error) {
+
+        console.log(
+            "Unable to read news cache:",
+            error
+        );
+
+        return null;
+
+    }
+
+}
+
+
+/* =========================================
+   CHECK IF DATA IS THE SAME
+========================================= */
+
+function newsIsSame(
+    oldNews,
+    newNews
+) {
+
+    try {
+
+        return JSON.stringify(
+            oldNews
+        ) === JSON.stringify(
+            newNews
+        );
+
+    }
+
+    catch (error) {
+
+        return false;
+
+    }
+
+}
+
+
+/* =========================================
+   SHOW NEWS CARDS
+========================================= */
+
+function displayNews(news) {
+
+    const container =
+        document.getElementById(
+            "newsContainer"
+        );
+
+
+    if (
+        !news ||
+        news.length === 0
+    ) {
+
+        container.innerHTML =
+        `
+        <p style="
+            text-align:center;
+            grid-column:1/-1;
+            color:#777;
+            padding:40px;
+        ">
+            No news or events available.
+        </p>
+        `;
+
+        return;
+
+    }
+
+
+    container.innerHTML = "";
+
+
+    news.forEach(
+        function(item) {
+
+            createCard(
+                item,
+                container
+            );
+
+        }
+    );
+
+}
+
+
+/* =========================================
    LOAD NEWS
 ========================================= */
 
 async function loadNews() {
 
     const loading =
-        document.getElementById("loading");
+        document.getElementById(
+            "loading"
+        );
 
     const error =
-        document.getElementById("error");
+        document.getElementById(
+            "error"
+        );
 
-    const container =
-        document.getElementById("newsContainer");
 
+    /*
+       =====================================
+       STEP 1
+       CHECK CACHE FIRST
+       =====================================
+    */
+
+    const cachedNews =
+        getCachedNews();
+
+
+    /*
+       If cache exists,
+       show it immediately.
+    */
+
+    if (cachedNews) {
+
+        displayNews(
+            cachedNews
+        );
+
+        loading.style.display =
+            "none";
+
+    }
+
+
+    /*
+       =====================================
+       STEP 2
+       FETCH GOOGLE SHEET
+       =====================================
+    */
 
     try {
 
-        /* FETCH DATA */
-
         const response =
-            await fetch(API_URL);
+            await fetch(
+                API_URL
+            );
 
 
-        /* CHECK RESPONSE */
+        /*
+           CHECK RESPONSE
+        */
 
         if (!response.ok) {
 
@@ -836,91 +1067,125 @@ async function loadNews() {
         }
 
 
-        /* CONVERT TO JSON */
+        /*
+           CONVERT TO JSON
+        */
 
         const data =
             await response.json();
 
 
-        /* HIDE LOADING */
-
-        loading.style.display =
-            "none";
-
-
-        /* FILTER PUBLISHED */
+        /*
+           FILTER PUBLISHED
+        */
 
         const publishedItems =
-            data.filter(function(item) {
+            data.filter(
+                function(item) {
 
-                return String(item.Status)
+                    return String(
+                        item.Status
+                    )
                     .trim()
                     .toLowerCase()
                     === "published";
 
-            });
+                }
+            );
 
 
-        /* NO RESULTS */
+        /*
+           =====================================
+           STEP 3
+           CHECK WHETHER DATA CHANGED
+           =====================================
+        */
+
+        const dataChanged =
+            !newsIsSame(
+                cachedNews,
+                publishedItems
+            );
+
+
+        /*
+           =====================================
+           STEP 4
+           UPDATE ONLY IF NECESSARY
+           =====================================
+        */
 
         if (
-            publishedItems.length === 0
+            !cachedNews ||
+            dataChanged
         ) {
 
-            container.innerHTML =
-                `
-                <p style="
-                    text-align:center;
-                    grid-column:1/-1;
-                    color:#777;
-                    padding:40px;
-                ">
-                    No news or events available.
-                </p>
-                `;
-
-            return;
+            displayNews(
+                publishedItems
+            );
 
         }
 
 
-        /* CLEAR */
+        /*
+           =====================================
+           STEP 5
+           SAVE LATEST DATA
+           =====================================
+        */
 
-        container.innerHTML = "";
-
-
-        /* CREATE CARDS */
-
-        publishedItems.forEach(
-            function(item) {
-
-                createCard(
-                    item,
-                    container
-                );
-
-            }
+        saveNewsToCache(
+            publishedItems
         );
 
 
-    }
-
-    catch (err) {
-
-        console.error(err);
-
+        /*
+           HIDE LOADING
+        */
 
         loading.style.display =
             "none";
 
 
+        /*
+           HIDE ERROR
+        */
+
         error.style.display =
-            "block";
+            "none";
+
+    }
+
+
+    catch (err) {
+
+        console.error(
+            "Google Sheet update failed:",
+            err
+        );
+
+
+        /*
+           If cached data exists,
+           keep displaying it.
+
+           Do NOT replace it with
+           an error message.
+        */
+
+        if (!cachedNews) {
+
+            loading.style.display =
+                "none";
+
+            error.style.display =
+                "block";
+
+        }
 
     }
 
 }
-
 
 
 /* =========================================
@@ -989,7 +1254,9 @@ function createCard(
     if (item.Date) {
 
         const date =
-            new Date(item.Date);
+            new Date(
+                item.Date
+            );
 
 
         if (
@@ -1056,13 +1323,29 @@ function createCard(
         title;
 
 
+    /*
+       Lazy loading means images lower
+       down the page can load later.
+    */
+
+    img.loading =
+        "lazy";
+
+
     /* IMAGE ERROR */
 
     img.onerror =
         function() {
 
-            this.src =
-                DEFAULT_IMAGE;
+            if (
+                this.src !==
+                DEFAULT_IMAGE
+            ) {
+
+                this.src =
+                    DEFAULT_IMAGE;
+
+            }
 
         };
 
@@ -1215,7 +1498,6 @@ function createCard(
 }
 
 
-
 /* =========================================
    SHOW ARTICLE
 ========================================= */
@@ -1258,7 +1540,6 @@ function showArticle(
 }
 
 
-
 /* =========================================
    CLOSE ARTICLE
 ========================================= */
@@ -1277,7 +1558,6 @@ function closeArticle() {
         "";
 
 }
-
 
 
 /* =========================================
@@ -1306,7 +1586,6 @@ window.addEventListener(
 );
 
 
-
 /* =========================================
    ESCAPE KEY
 ========================================= */
@@ -1327,7 +1606,6 @@ window.addEventListener(
 );
 
 
-
 /* =========================================
    START
 ========================================= */
@@ -1338,4 +1616,3 @@ loadNews();
 </script>
 
 </body>
-</html>
